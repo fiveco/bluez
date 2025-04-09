@@ -28,6 +28,7 @@
 #include "src/shared/gatt-db.h"
 #include "src/shared/gatt-server.h"
 #include "src/shared/gatt-client.h"
+#include "src/shared/gatt-helpers.h"
 #include "peripheral/gatt.h"
 
 #define ATT_CID 4
@@ -172,6 +173,12 @@ static void att_conn_callback(int fd, uint32_t events, void *user_data)
 		fprintf(stderr, "Failed to add GATT connection\n");
 		gatt_conn_destroy(conn);
 		close(new_fd);
+	}
+
+	printf("Requesting MTU exchange\n");
+	if (!bt_gatt_exchange_mtu(conn->att, NULL, NULL, NULL))
+	{
+		fprintf(stderr, "Failed to Request MTU Exchange\n");
 	}
 
 	printf("New device connected\n");
