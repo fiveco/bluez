@@ -41,6 +41,7 @@
 #include "src/shared/queue.h"
 #include "src/shared/gatt-db.h"
 #include "src/shared/gatt-client.h"
+#include "src/shared/gatt-helpers.h"
 #include "src/shared/gatt-server.h"
 #include "src/shared/ad.h"
 #include "src/shared/timeout.h"
@@ -6241,6 +6242,39 @@ static void register_gatt_services(struct btd_device *device)
 
 static void gatt_client_init(struct btd_device *device);
 
+static void gatt_auto_exchange_mtu_cb(bool success, uint8_t att_ecode,
+							void *user_data)
+{
+	struct btd_device *device = user_data;
+
+	if (!device || !device->att)
+		return;
+
+	if (!success) {
+		DBG("Auto MTU exchange failed: 0x%02x", att_ecode);
+		return;
+	}
+
+	DBG("Auto MTU exchange complete, mtu %u", bt_att_get_mtu(device->att));
+}
+
+static void gatt_auto_exchange_mtu(struct btd_device *device)
+{
+	unsigned int req_id;
+
+	if (!device || !device->att)
+		return;
+
+	if (bt_att_get_link_type(device->att) == BT_ATT_BREDR)
+		return;
+
+	req_id = bt_gatt_exchange_mtu(device->att, BT_ATT_MAX_LE_MTU,
+					gatt_auto_exchange_mtu_cb,
+					device, NULL);
+	if (!req_id)
+		DBG("Failed to initiate auto MTU exchange");
+}
+
 static void gatt_client_ready_cb(bool success, uint8_t att_ecode,
 								void *user_data)
 {
@@ -6490,6 +6524,10 @@ bool device_attach_att(struct btd_device *dev, GIOChannel *io)
 
 	gatt_client_init(dev);
 	gatt_server_init(dev, database);
+
+	/* GATT client init already performs MTU exchange. */
+	if (!dev->client)
+		gatt_auto_exchange_mtu(dev);
 
 	/*
 	 * Remove the device from the connect_list and give the passive
