@@ -2122,10 +2122,22 @@ static void discovering_callback(uint16_t index, uint16_t length,
 
 	switch (adapter->discovery_enable) {
 	case 0x00:
-		if (adapter->no_scan_restart_delay)
-			trigger_start_discovery(adapter, 0);
-		else
-			trigger_start_discovery(adapter, IDLE_DISCOV_TIMEOUT);
+		/*
+		 * Keep discovery stopped once the controller reports disabled,
+		 * instead of scheduling automatic restart cycles.
+		 */
+		if (adapter->discovery_idle_timeout > 0) {
+			timeout_remove(adapter->discovery_idle_timeout);
+			adapter->discovery_idle_timeout = 0;
+		}
+
+		adapter->no_scan_restart_delay = false;
+
+		if (adapter->discovering) {
+			adapter->discovering = false;
+			g_dbus_emit_property_changed(dbus_conn, adapter->path,
+					ADAPTER_INTERFACE, "Discovering");
+		}
 		break;
 
 	case 0x01:
